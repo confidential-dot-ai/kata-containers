@@ -105,22 +105,30 @@ pull_from_cache() {
 	local version="$2"
 	local output_dir="$3"
 
-	local oci_image="${ARTEFACT_REGISTRY}/${ARTEFACT_REPOSITORY}/cached-tarballs/${artifact_name}:${version}"
+	# cached-tarballs are content-addressed by version, so the upstream public
+	# cache is always a valid source. A fork (ARTEFACT_REPOSITORY != kata-containers)
+	# has an empty cache, so fall back to upstream — otherwise every component
+	# rebuilds from source (and e.g. the gperf source build's GPG import is flaky).
+	local repos="${ARTEFACT_REPOSITORY}"
+	[[ "${ARTEFACT_REPOSITORY}" == "${CACHE_PULL_FALLBACK_REPOSITORY:-kata-containers}" ]] \
+		|| repos="${ARTEFACT_REPOSITORY} ${CACHE_PULL_FALLBACK_REPOSITORY:-kata-containers}"
 
 	info "Checking cache for ${artifact_name} version ${version}"
-
 	mkdir -p "${output_dir}"
-	pushd "${output_dir}" > /dev/null
 
-	# Redirect ORAS output to stderr so it doesn't get captured by variable assignments
-	if oras pull "${oci_image}" --no-tty >&2; then
-		info "Successfully pulled ${artifact_name} from cache"
+	local repo oci_image
+	for repo in ${repos}; do
+		oci_image="${ARTEFACT_REGISTRY}/${repo}/cached-tarballs/${artifact_name}:${version}"
+		pushd "${output_dir}" > /dev/null
+		# Redirect ORAS output to stderr so it doesn't get captured by variable assignments
+		if oras pull "${oci_image}" --no-tty >&2; then
+			info "Successfully pulled ${artifact_name} from cache (${repo})"
+			popd > /dev/null
+			return 0
+		fi
 		popd > /dev/null
-		return 0
-	fi
-
-	popd > /dev/null
-	warn "Failed to pull from cache: ${oci_image}"
+		warn "Failed to pull from cache: ${oci_image}"
+	done
 	return 1
 }
 
