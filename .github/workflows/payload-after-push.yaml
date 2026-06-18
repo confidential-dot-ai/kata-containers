@@ -9,6 +9,17 @@ permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Cancel a still-queued/running build when a newer commit lands, so a build
+  # stuck waiting on a runner never wedges the slot and blocks the fix.
+  cancel-in-progress: true
+
+# NOTE (confidential-dot-ai fork): scoped to amd64 only. The IGVM measured-boot
+# class (kata-qemu-snp-igvm) is x86_64-only, the org's self-hosted runner
+# (the-machine) is x86_64, and the fork has no arm64/s390x/ppc64le runners — so
+# those jobs only ever queue forever. Everything publishes to
+# ghcr.io/confidential-dot-ai/* with GITHUB_TOKEN (no quay.io). To restore
+# multi-arch, re-add the per-arch build/publish jobs (with real per-arch
+# runners) and drop KATA_DEPLOY_ARCHES from the manifest jobs.
 
 jobs:
   build-assets-amd64:
@@ -26,47 +37,6 @@ jobs:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
       KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
 
-  build-assets-arm64:
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    uses: ./.github/workflows/build-kata-static-tarball-arm64.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      push-to-registry: yes
-      target-branch: ${{ github.ref_name }}
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-      KBUILD_SIGN_PIN: ${{ secrets.KBUILD_SIGN_PIN }}
-
-  build-assets-s390x:
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    uses: ./.github/workflows/build-kata-static-tarball-s390x.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      push-to-registry: yes
-      target-branch: ${{ github.ref_name }}
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
-  build-assets-ppc64le:
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/build-kata-static-tarball-ppc64le.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      push-to-registry: yes
-      target-branch: ${{ github.ref_name }}
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
   publish-kata-deploy-image-amd64:
     needs: build-assets-amd64
     permissions:
@@ -81,60 +51,6 @@ jobs:
       target-branch: ${{ github.ref_name }}
       runner: ubuntu-22.04
       arch: amd64
-      image-kind: deploy
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
-  publish-kata-deploy-image-arm64:
-    needs: build-assets-arm64
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-kata-images.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      registry: ghcr.io
-      repo: confidential-dot-ai/kata-deploy-ci
-      tag: kata-containers-latest-arm64
-      target-branch: ${{ github.ref_name }}
-      runner: ubuntu-24.04-arm
-      arch: arm64
-      image-kind: deploy
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
-  publish-kata-deploy-image-s390x:
-    needs: build-assets-s390x
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-kata-images.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      registry: ghcr.io
-      repo: confidential-dot-ai/kata-deploy-ci
-      tag: kata-containers-latest-s390x
-      target-branch: ${{ github.ref_name }}
-      runner: ubuntu-24.04-s390x
-      arch: s390x
-      image-kind: deploy
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
-  publish-kata-deploy-image-ppc64le:
-    needs: build-assets-ppc64le
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-kata-images.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      registry: ghcr.io
-      repo: confidential-dot-ai/kata-deploy-ci
-      tag: kata-containers-latest-ppc64le
-      target-branch: ${{ github.ref_name }}
-      runner: ubuntu-24.04-ppc64le
-      arch: ppc64le
       image-kind: deploy
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
@@ -157,67 +73,13 @@ jobs:
     secrets:
       QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
 
-  publish-kata-monitor-image-arm64:
-    needs: build-assets-arm64
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-kata-images.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      registry: ghcr.io
-      repo: confidential-dot-ai/kata-monitor-ci
-      tag: kata-monitor-latest-arm64
-      target-branch: ${{ github.ref_name }}
-      runner: ubuntu-24.04-arm
-      arch: arm64
-      image-kind: monitor
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
-  publish-kata-monitor-image-s390x:
-    needs: build-assets-s390x
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-kata-images.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      registry: ghcr.io
-      repo: confidential-dot-ai/kata-monitor-ci
-      tag: kata-monitor-latest-s390x
-      target-branch: ${{ github.ref_name }}
-      runner: ubuntu-24.04-s390x
-      arch: s390x
-      image-kind: monitor
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
-  publish-kata-monitor-image-ppc64le:
-    needs: build-assets-ppc64le
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/publish-kata-images.yaml
-    with:
-      commit-hash: ${{ github.sha }}
-      registry: ghcr.io
-      repo: confidential-dot-ai/kata-monitor-ci
-      tag: kata-monitor-latest-ppc64le
-      target-branch: ${{ github.ref_name }}
-      runner: ubuntu-24.04-ppc64le
-      arch: ppc64le
-      image-kind: monitor
-    secrets:
-      QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
-
   publish-manifest:
     name: publish-manifest
     runs-on: ubuntu-22.04
     permissions:
       contents: read
       packages: write
-    needs: [publish-kata-deploy-image-amd64, publish-kata-deploy-image-arm64, publish-kata-deploy-image-s390x, publish-kata-deploy-image-ppc64le]
+    needs: [publish-kata-deploy-image-amd64]
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -237,6 +99,7 @@ jobs:
         env:
           KATA_DEPLOY_IMAGE_TAGS: "kata-containers-latest"
           KATA_DEPLOY_REGISTRIES: "ghcr.io/confidential-dot-ai/kata-deploy-ci"
+          KATA_DEPLOY_ARCHES: "amd64"
 
   publish-kata-monitor-manifest:
     name: publish-kata-monitor-manifest
@@ -244,19 +107,12 @@ jobs:
     permissions:
       contents: read
       packages: write
-    needs: [publish-kata-monitor-image-amd64, publish-kata-monitor-image-arm64, publish-kata-monitor-image-s390x, publish-kata-monitor-image-ppc64le]
+    needs: [publish-kata-monitor-image-amd64]
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-
-      - name: Login to Kata Containers ghcr.io
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to GHCR (confidential-dot-ai fork)
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -271,6 +127,8 @@ jobs:
         env:
           KATA_DEPLOY_IMAGE_TAGS: "kata-monitor-latest"
           KATA_DEPLOY_REGISTRIES: "ghcr.io/confidential-dot-ai/kata-monitor-ci"
+          KATA_DEPLOY_PUBLISH_JOB_DISPATCHER: "false"
+          KATA_DEPLOY_ARCHES: "amd64"
 
   upload-helm-chart-tarball:
     name: upload-helm-chart-tarball
@@ -290,19 +148,12 @@ jobs:
 
       - name: Login to the OCI registries
         env:
-          QUAY_DEPLOYER_USERNAME: ${{ vars.QUAY_DEPLOYER_USERNAME }}
-          QUAY_DEPLOYER_PASSWORD: ${{ secrets.QUAY_DEPLOYER_PASSWORD }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           echo "${GITHUB_TOKEN}" | helm registry login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
 
       - name: Push helm chart to the OCI registries
         run: |
-          ./tools/packaging/kata-deploy/local-build/kata-deploy-build-and-upload-helm-chart.sh \
-            ghcr.io/confidential-dot-ai/kata-deploy-ci \
-            kata-containers-latest \
-            ghcr.io/confidential-dot-ai/kata-deploy-charts \
-            0.0.0-dev
           ./tools/packaging/kata-deploy/local-build/kata-deploy-build-and-upload-helm-chart.sh \
             ghcr.io/confidential-dot-ai/kata-deploy-ci \
             kata-containers-latest \

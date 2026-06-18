@@ -21,7 +21,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: kata-containers/kubectl
+  IMAGE_NAME: confidential-dot-ai/kubectl
 
 jobs:
   build-and-push:

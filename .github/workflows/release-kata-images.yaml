@@ -64,7 +64,7 @@ jobs:
     with:
       commit-hash: ${{ github.sha }}
       registry: ghcr.io
-      repo: kata-containers/kata-monitor
+      repo: confidential-dot-ai/kata-monitor
       tag: latest
       tags: ${{ needs.resolve-tags.outputs.tags }}
       tag-suffix: ${{ matrix.tag_suffix }}

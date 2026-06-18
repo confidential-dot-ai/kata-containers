@@ -11,7 +11,7 @@ permissions: {}
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: kata-containers/confidential-containers-auth
+  IMAGE_NAME: confidential-dot-ai/confidential-containers-auth
 
 jobs:
   build-and-push:
