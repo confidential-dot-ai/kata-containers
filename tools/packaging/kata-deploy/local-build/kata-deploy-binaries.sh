@@ -277,7 +277,20 @@ install_cached_tarball_component() {
 		install_cached_shim_v2_tarball_get_root_hash
 	fi
 
-	oras pull "${ARTEFACT_REGISTRY}/${ARTEFACT_REPOSITORY}/cached-artefacts/${build_target}:latest-${TARGET_BRANCH}-$(uname -m)" || return 1
+	# Try our own cache first, then fall back to the upstream public cache so a
+	# fork with an empty cache still hits for UNCHANGED components (the
+	# version/image-version checks below reject any stale pull — e.g. our
+	# --enable-igvm qemu has a different builder image, so it misses and rebuilds).
+	__cache_repos="${ARTEFACT_REPOSITORY}"
+	[[ "${ARTEFACT_REPOSITORY}" == "${CACHE_PULL_FALLBACK_REPOSITORY:-kata-containers}" ]] \
+		|| __cache_repos="${ARTEFACT_REPOSITORY} ${CACHE_PULL_FALLBACK_REPOSITORY:-kata-containers}"
+	__pulled="no"
+	for __repo in ${__cache_repos}; do
+		if oras pull "${ARTEFACT_REGISTRY}/${__repo}/cached-artefacts/${build_target}:latest-${TARGET_BRANCH}-$(uname -m)"; then
+			__pulled="yes"; break
+		fi
+	done
+	[[ "${__pulled}" == "yes" ]] || return 1
 
 	cached_version="$(cat "${component}"-version)"
 	cached_image_version="$(cat "${component}"-builder-image-version)"
