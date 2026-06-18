@@ -36,10 +36,10 @@ jobs:
   build-asset:
     name: build-asset
     # The fork rebuilds QEMU from source (--enable-igvm + libigvm => oras cache
-    # miss), too heavy/disk-hungry for a GitHub-hosted runner — route just the
-    # qemu* assets to the org's fat self-hosted runner (the-machine). Everything
-    # else is a cached oras pull, so keep it parallel on ubuntu-22.04.
-    runs-on: ${{ contains(matrix.asset, 'qemu') && 'the-machine' || 'ubuntu-22.04' }}
+    # miss) — a large build, so put the qemu* assets on ubuntu-latest (more disk
+    # than 22.04) plus the free-disk-space step below. Everything else is a cached
+    # oras pull, so keep it parallel on ubuntu-22.04.
+    runs-on: ${{ contains(matrix.asset, 'qemu') && 'ubuntu-latest' || 'ubuntu-22.04' }}
     permissions:
       contents: read
       packages: write
@@ -74,6 +74,15 @@ jobs:
     env:
       PERFORM_ATTESTATION: ${{ inputs.push-to-registry == 'yes' && 'yes' || 'no' }}
     steps:
+      - name: Free up disk space (qemu builds from source)
+        if: ${{ contains(matrix.asset, 'qemu') }}
+        run: |
+          set -x
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-}" || true
+          sudo docker image prune -af || true
+          df -h /
+
       - name: Login to GHCR (confidential-dot-ai fork)
         if: ${{ inputs.push-to-registry == 'yes' }}
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
