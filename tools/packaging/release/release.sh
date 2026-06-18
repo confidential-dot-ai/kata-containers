@@ -177,13 +177,18 @@ function _publish_multiarch_manifest()
 	# quay.io rejects pushing multi-arch manifest lists that include attestation manifests
 	# ("manifest invalid"), so we do not enable them for this workflow.
 	# imagetools create pushes to --tag by default.
+	# Arches that contribute to the manifest list. Defaults to the full upstream
+	# set; override with KATA_DEPLOY_ARCHES (space-separated) for partial-arch
+	# forks — the confidential-dot-ai IGVM fork builds amd64 only, so a hardcoded
+	# arm64/s390x/ppc64le tag list would 404 the merge.
+	local arches=(${KATA_DEPLOY_ARCHES:-amd64 arm64 s390x ppc64le})
 	for registry in "${REGISTRIES[@]}" "${JOB_DISPATCHER_REGISTRIES[@]}"; do
 		for tag in "${IMAGE_TAGS[@]}"; do
-			docker buildx imagetools create --tag "${registry}:${tag}" \
-				"${registry}:${tag}-amd64" \
-				"${registry}:${tag}-arm64" \
-				"${registry}:${tag}-s390x" \
-				"${registry}:${tag}-ppc64le"
+			local src_tags=()
+			for arch in "${arches[@]}"; do
+				src_tags+=("${registry}:${tag}-${arch}")
+			done
+			docker buildx imagetools create --tag "${registry}:${tag}" "${src_tags[@]}"
 		done
 	done
 }

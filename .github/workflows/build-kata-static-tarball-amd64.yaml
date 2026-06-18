@@ -35,7 +35,11 @@ concurrency:
 jobs:
   build-asset:
     name: build-asset
-    runs-on: ubuntu-22.04
+    # The fork rebuilds QEMU from source (--enable-igvm + libigvm => oras cache
+    # miss), too heavy/disk-hungry for a GitHub-hosted runner — route just the
+    # qemu* assets to the org's fat self-hosted runner (the-machine). Everything
+    # else is a cached oras pull, so keep it parallel on ubuntu-22.04.
+    runs-on: ${{ contains(matrix.asset, 'qemu') && 'the-machine' || 'ubuntu-22.04' }}
     permissions:
       contents: read
       packages: write
