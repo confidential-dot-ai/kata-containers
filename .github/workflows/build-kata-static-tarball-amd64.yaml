@@ -120,6 +120,14 @@ jobs:
           ARTEFACT_REGISTRY: ghcr.io
           ARTEFACT_REGISTRY_USERNAME: ${{ github.actor }}
           ARTEFACT_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # The qemu builder image carries a fork-unique hash (the libigvm
+          # Dockerfile change), so it always misses upstream's read-only
+          # quay.io/kata-containers/builders cache and must be (re)built and
+          # pushed. Point that push at the fork's writable GHCR namespace — we
+          # are already logged into ghcr.io above when push-to-registry==yes.
+          # Non-qemu assets keep their unchanged builders, which still resolve
+          # against the upstream quay cache (public, read-only pull, hash hit).
+          BUILDER_REGISTRY: ${{ contains(matrix.asset, 'qemu') && 'ghcr.io/confidential-dot-ai/builders' || 'quay.io/kata-containers/builders' }}
           TARGET_BRANCH: ${{ inputs.target-branch }}
           RELEASE: ${{ inputs.stage == 'release' && 'yes' || 'no' }}
           KBUILD_SIGN_PIN: ${{ contains(matrix.asset, 'nvidia') && secrets.KBUILD_SIGN_PIN || '' }}

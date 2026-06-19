@@ -63,8 +63,13 @@ container_image="${QEMU_CONTAINER_BUILDER:-$(get_qemu_image_name)}"
 	"${packaging_dir}" \
 	-f "${script_dir}/Dockerfile" \
 	-t "${container_image}" && \
-	# No-op unless PUSH_TO_REGISTRY is exported as "yes"
-	push_to_registry "${container_image}")
+	# No-op unless PUSH_TO_REGISTRY is exported as "yes".
+	# Push without sudo: the image is built with the rootless/user docker above,
+	# and on GitHub runners docker/login-action stores the registry credentials
+	# under the runner user's ${HOME}/.docker/config.json. A "sudo docker push"
+	# runs as root with a different (empty) docker config and would 401, so keep
+	# the push on the same docker context that holds the login.
+	push_to_registry "${container_image}" "no")
 
 "${container_engine}" run --rm -i \
 	--env BUILD_SUFFIX="${build_suffix}" \

@@ -133,10 +133,16 @@ push_to_registry() {
 	local use_sudo="${2:-"yes"}"
 
 	if [[ "${PUSH_TO_REGISTRY}" == "yes" ]]; then
+		# Best-effort: a builder image is a build-time cache, not a deliverable.
+		# The confidential-dot-ai fork has no push access to the default
+		# BUILDER_REGISTRY (quay.io/kata-containers/builders), and a locally-built
+		# builder (e.g. our --enable-igvm qemu, whose modified Dockerfile misses the
+		# upstream cache) must not fail the asset build just because its cache push
+		# is unauthorized — the build proceeds with the local image either way.
 		if [[ "${use_sudo}" == "yes" ]]; then
-			sudo docker push "${tag}"
+			sudo docker push "${tag}" || warn "push_to_registry: could not push ${tag} (continuing; builder image is cache-only)"
 		else
-			docker push "${tag}"
+			docker push "${tag}" || warn "push_to_registry: could not push ${tag} (continuing; builder image is cache-only)"
 		fi
 	fi
 }
