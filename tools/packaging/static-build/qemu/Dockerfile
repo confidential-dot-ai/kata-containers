@@ -107,23 +107,33 @@ RUN rm /etc/apt/sources.list.d/noble.list && \
 
 # libigvm: QEMU's `--enable-igvm` (the igvm-cfg object the kata-qemu-snp-igvm
 # runtime boots from) needs the IGVM C library exposed via pkg-config as `igvm`.
-# It is not packaged, so build it from the upstream igvm crate's C API with
-# cargo-c, pinned to the 0.4.x the runtime expects, and install libigvm.so +
-# igvm.pc under /usr/local where QEMU's configure looks.
-#
-# TODO(confidential-dot-ai): confirm this matches how libigvm 0.4.0 was built
-# for /opt/qemu-igvm (cargo-c vs the igvm_c Makefile, and the exact tag) — this
-# is a reconstruction. amd64-only; the kata-qemu-snp-igvm class is x86_64-only.
-ARG IGVM_VERSION=v0.4.0
+# It is not packaged. The upstream C API lives in microsoft/igvm's igvm_c/ as a
+# Makefile project (cbindgen-generated headers + a static libigvm.a built from
+# the igvm crate's `igvm-c` feature) — NOT a cargo-c crate. We mirror the repo's
+# own CI (install cbindgen, then `make`): `make build` + `make install`. That
+# drops libigvm.a + headers under /usr/local and igvm.pc under
+# /usr/local/lib64/pkgconfig — a non-default pkg-config dir on Ubuntu, hence the
+# PKG_CONFIG_PATH ENV below which QEMU's `./configure --enable-igvm` reads.
+# Pinned to igvm-v0.4.0 (microsoft/igvm tags per-crate as igvm-vX.Y.Z), matching
+# the libigvm the fork's /opt/qemu-igvm was built against. A debug build (no
+# RELEASE) is intentional: it keeps the Makefile's output paths consistent and
+# the parser's speed is irrelevant (one-shot at VM boot). We build only `build`
+# (not the default `all`) to skip the CUnit-dependent `test` target.
+# amd64-only; the kata-qemu-snp-igvm class is x86_64-only.
+ARG IGVM_VERSION=igvm-v0.4.0
 RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
-        apt-get update && apt-get install -y --no-install-recommends curl gcc libc6-dev libssl-dev pkg-config && \
+        apt-get update && apt-get install -y --no-install-recommends \
+            curl ca-certificates gcc libc6-dev make git gettext-base pkg-config && \
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal && \
         . "$HOME/.cargo/env" && \
-        cargo install cargo-c --locked && \
+        cargo install cbindgen && \
         git clone --depth 1 --branch "${IGVM_VERSION}" https://github.com/microsoft/igvm /tmp/igvm && \
-        cargo cinstall --release --manifest-path /tmp/igvm/igvm_c/Cargo.toml --prefix=/usr/local && \
+        make -C /tmp/igvm/igvm_c -f Makefile build && \
+        make -C /tmp/igvm/igvm_c -f Makefile install PREFIX=/usr/local && \
         ldconfig && \
-        pkg-config --exists igvm && echo "libigvm $(pkg-config --modversion igvm) installed" && \
+        PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig pkg-config --exists igvm && \
+        echo "libigvm $(PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig pkg-config --modversion igvm) installed" && \
         rm -rf /tmp/igvm "$HOME/.rustup" "$HOME/.cargo" && \
         apt-get clean && rm -rf /var/lib/apt/lists/* ; \
     fi
+ENV PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}
