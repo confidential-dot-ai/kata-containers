@@ -71,7 +71,11 @@ pushd "${tarball_content_dir}"
 			# thus we need to rely on the VERSION file.
 			cp "${repo_root_dir}/VERSION" "${prefix}/"
 		else
-			git describe --tags > "${prefix}/VERSION"
+			# A tagless checkout (e.g. the confidential-dot-ai fork's shallow CI
+			# clone has no v* tags) makes `git describe` exit 128; fall back to the
+			# in-tree VERSION file so the merged tarball still gets a version.
+			git describe --tags > "${prefix}/VERSION" 2>/dev/null || \
+				cp "${repo_root_dir}/VERSION" "${prefix}/VERSION"
 		fi
 		[[ -n "${kata_versions_yaml_file}" ]] && cp "${kata_versions_yaml_file}" "${prefix}/"
 	fi
