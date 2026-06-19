@@ -46,6 +46,9 @@ jobs:
       id-token: write
       attestations: write
     strategy:
+      # Don't let one failing asset cancel the others — a qemu* variant failing
+      # fast must not kill an in-flight 30-min qemu build (we need per-asset signal).
+      fail-fast: false
       matrix:
         asset:
           - agent

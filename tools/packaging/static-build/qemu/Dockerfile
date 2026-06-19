@@ -116,7 +116,7 @@ RUN rm /etc/apt/sources.list.d/noble.list && \
 # is a reconstruction. amd64-only; the kata-qemu-snp-igvm class is x86_64-only.
 ARG IGVM_VERSION=v0.4.0
 RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
-        apt-get update && apt-get install -y --no-install-recommends curl gcc libc6-dev && \
+        apt-get update && apt-get install -y --no-install-recommends curl gcc libc6-dev libssl-dev pkg-config && \
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal && \
         . "$HOME/.cargo/env" && \
         cargo install cargo-c --locked && \
